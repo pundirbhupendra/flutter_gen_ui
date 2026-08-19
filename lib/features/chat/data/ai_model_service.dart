@@ -52,6 +52,7 @@ class CloudAiService {
       ],
       'stream': false,
       'temperature': 0.0,
+      'response_format': {'type': 'json_object'},
     };
 
     final request = http.Request('POST', url)
@@ -296,10 +297,10 @@ class CloudAiService {
         if (message is Map) {
           final content = message['content'];
           if (content is String) {
-            final nested = jsonDecode(content);
-            if (nested is Map) {
-              return Map<String, dynamic>.from(nested);
-            }
+            return _decodeQuizContent(content);
+          }
+          if (content is Map) {
+            return Map<String, dynamic>.from(content);
           }
         }
       }
@@ -307,14 +308,39 @@ class CloudAiService {
 
     final content = root['content'];
     if (content is String) {
-      final nested = jsonDecode(content);
-      if (nested is Map) {
-        return Map<String, dynamic>.from(nested);
-      }
+      return _decodeQuizContent(content);
+    }
+    if (content is Map) {
+      return Map<String, dynamic>.from(content);
     }
 
     throw const FormatException(
       'The quiz response did not include a parsable JSON payload.',
+    );
+  }
+
+  Map<String, dynamic> _decodeQuizContent(String content) {
+    final normalizedContent = content.trim();
+    final unfencedContent = normalizedContent.startsWith('```')
+        ? normalizedContent
+              .replaceFirst(RegExp(r'^```(?:json)?\s*'), '')
+              .replaceFirst(RegExp(r'\s*```$'), '')
+              .trim()
+        : normalizedContent;
+
+    try {
+      final decoded = jsonDecode(unfencedContent);
+      if (decoded is Map) {
+        return Map<String, dynamic>.from(decoded);
+      }
+    } on FormatException catch (error) {
+      throw FormatException(
+        'The model returned non-JSON quiz content: ${error.message}',
+      );
+    }
+
+    throw const FormatException(
+      'The model returned a JSON value, not an object.',
     );
   }
 
