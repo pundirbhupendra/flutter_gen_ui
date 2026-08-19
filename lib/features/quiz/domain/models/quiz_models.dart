@@ -105,7 +105,9 @@ class QuizQuestion {
     final parsedOptions = <String>[];
     for (final option in options) {
       if (option is! String || option.trim().isEmpty) {
-        throw const FormatException('Each quiz option must be a non-empty string.');
+        throw const FormatException(
+          'Each quiz option must be a non-empty string.',
+        );
       }
       parsedOptions.add(option.trim());
     }

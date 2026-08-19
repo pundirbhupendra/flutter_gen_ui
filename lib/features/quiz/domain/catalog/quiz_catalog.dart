@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:gen_ui/features/quiz/domain/models/quiz_models.dart';
-import 'package:gen_ui/features/quiz/presentation/quiz_controller.dart';
+import 'package:gen_ui/features/quiz/presentation/quiz_bloc.dart';
 
 final quizCatalogItem = CatalogItem(
   name: 'QuizQuestion',
   dataSchema: S.object(
-    description: 'A single dynamic quiz question surfaced through the GenUI catalog.',
+    description:
+        'A single dynamic quiz question surfaced through the GenUI catalog.',
     properties: {
       'title': S.string(description: 'Quiz title to display.'),
       'question': S.string(description: 'The current quiz question.'),
@@ -16,30 +17,36 @@ final quizCatalogItem = CatalogItem(
         description: 'Possible answer choices for the question.',
       ),
       'selectedAnswer': S.string(description: 'The user-selected answer.'),
-      'correctAnswer': S.string(description: 'The correct answer for the question.'),
-      'explanation': S.string(description: 'Explanation shown after submission.'),
-      'submitted': S.boolean(description: 'Whether the answer has been submitted.'),
-      'controller': S.object(description: 'Optional quiz controller reference.'),
+      'correctAnswer': S.string(
+        description: 'The correct answer for the question.',
+      ),
+      'explanation': S.string(
+        description: 'Explanation shown after submission.',
+      ),
+      'submitted': S.boolean(
+        description: 'Whether the answer has been submitted.',
+      ),
+      'bloc': S.object(description: 'Optional quiz BLoC reference.'),
     },
   ),
   widgetBuilder: (itemContext) {
     final rawData = itemContext.data;
-    final data = rawData is Map ? Map<String, Object?>.from(rawData) : <String, Object?>{};
+    final data = rawData is Map
+        ? Map<String, Object?>.from(rawData)
+        : <String, Object?>{};
 
-    final controller = data['controller'] is QuizController
-        ? data['controller'] as QuizController
-        : null;
+    final bloc = data['bloc'] is QuizBloc ? data['bloc'] as QuizBloc : null;
 
-    final mappedQuestion = _questionFromMap(data, controller);
+    final mappedQuestion = _questionFromMap(data, bloc);
     if (mappedQuestion == null) {
       return const SizedBox.shrink();
     }
 
-    final selectedAnswer = controller != null
-        ? controller.selectedAnswerForCurrentQuestion
+    final selectedAnswer = bloc != null
+        ? bloc.state.selectedAnswerForCurrentQuestion
         : (data['selectedAnswer'] as String?);
-    final submitted = controller != null
-        ? controller.isCurrentQuestionSubmitted
+    final submitted = bloc != null
+        ? bloc.state.isCurrentQuestionSubmitted
         : data['submitted'] == true;
     final currentQuestion = mappedQuestion;
 
@@ -49,34 +56,29 @@ final quizCatalogItem = CatalogItem(
       selectedAnswer: selectedAnswer,
       submitted: submitted,
       onSelect: (answer) {
-        controller?.handleAction('select_answer', answer: answer);
+        bloc?.add(SelectAnswer(answer));
       },
       onSubmit: () {
-        controller?.handleAction('submit_answer');
+        bloc?.add(const SubmitAnswer());
       },
       onNext: () {
-        controller?.handleAction('next_question');
+        bloc?.add(const NextQuestion());
       },
     );
   },
 );
 
-QuizQuestion? _questionFromMap(
-  Map<String, Object?> data,
-  QuizController? controller,
-) {
+QuizQuestion? _questionFromMap(Map<String, Object?> data, QuizBloc? bloc) {
   final questionText = data['question'];
   final options = data['options'];
   final correctAnswer = data['correctAnswer'];
 
-  final currentQuestion = controller?.currentQuestion;
+  final currentQuestion = bloc?.state.currentQuestion;
   if (currentQuestion != null) {
     return currentQuestion;
   }
 
-  if (questionText is! String ||
-      options is! List ||
-      correctAnswer is! String) {
+  if (questionText is! String || options is! List || correctAnswer is! String) {
     return null;
   }
 
@@ -139,15 +141,14 @@ class _QuizQuestionCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            Text(
-              question.question,
-              style: theme.textTheme.bodyLarge,
-            ),
+            Text(question.question, style: theme.textTheme.bodyLarge),
             const SizedBox(height: 16),
             ...question.options.map((option) {
               final isSelected = selectedAnswer == option;
-              final isCorrectChoice = submitted && option == question.correctAnswer;
-              final isIncorrectChoice = submitted && isSelected && option != question.correctAnswer;
+              final isCorrectChoice =
+                  submitted && option == question.correctAnswer;
+              final isIncorrectChoice =
+                  submitted && isSelected && option != question.correctAnswer;
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -155,10 +156,10 @@ class _QuizQuestionCard extends StatelessWidget {
                   color: isCorrectChoice
                       ? colorScheme.primaryContainer
                       : isIncorrectChoice
-                          ? colorScheme.errorContainer
-                          : isSelected
-                              ? colorScheme.secondaryContainer
-                              : colorScheme.surfaceContainerHighest,
+                      ? colorScheme.errorContainer
+                      : isSelected
+                      ? colorScheme.secondaryContainer
+                      : colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(12),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
@@ -177,7 +178,10 @@ class _QuizQuestionCard extends StatelessWidget {
                             ),
                           ),
                           if (submitted && isCorrectChoice)
-                            Icon(Icons.check_circle, color: colorScheme.primary),
+                            Icon(
+                              Icons.check_circle,
+                              color: colorScheme.primary,
+                            ),
                           if (submitted && isIncorrectChoice)
                             Icon(Icons.close_rounded, color: colorScheme.error),
                         ],

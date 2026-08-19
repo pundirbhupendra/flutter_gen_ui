@@ -94,18 +94,15 @@ class CustomTransportAdapter implements Transport {
   /// Adds version "v0.9" if missing.
   core.A2uiMessage _ensureVersionField(core.A2uiMessage message) {
     final json = message.toJson();
-    
+
     // If version is already present, return as-is
     if (json.containsKey('version') && json['version'] == 'v0.9') {
       return message;
     }
-    
+
     // Add/ensure version field and reconstruct
-    final updatedJson = <String, dynamic>{
-      'version': 'v0.9',
-      ...json,
-    };
-    
+    final updatedJson = <String, dynamic>{'version': 'v0.9', ...json};
+
     return core.A2uiMessage.fromJson(updatedJson);
   }
 }

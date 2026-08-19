@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gen_ui/features/chat/data/ai_model_service.dart';
 import 'package:gen_ui/features/chat/data/open_router_model_store.dart';
 import 'package:gen_ui/features/quiz/data/quiz_generation_service.dart';
 import 'package:gen_ui/features/quiz/domain/models/quiz_models.dart';
-import 'package:gen_ui/features/quiz/presentation/quiz_controller.dart';
+import 'package:gen_ui/features/quiz/presentation/quiz_bloc.dart';
 
 class QuizHomeScreen extends StatefulWidget {
   const QuizHomeScreen({super.key});
@@ -15,7 +16,7 @@ class QuizHomeScreen extends StatefulWidget {
 class _QuizHomeScreenState extends State<QuizHomeScreen> {
   final OpenRouterModelStore _modelStore = OpenRouterModelStore();
   late final CloudAiService _cloudAiService;
-  late final QuizController _controller;
+  late final QuizBloc _bloc;
 
   final TextEditingController _topicController = TextEditingController(
     text: 'Flutter',
@@ -28,16 +29,14 @@ class _QuizHomeScreenState extends State<QuizHomeScreen> {
   void initState() {
     super.initState();
     _cloudAiService = CloudAiService(modelStore: _modelStore);
-    _controller = QuizController(
-      generationService: QuizGenerationService(
-        cloudAiService: _cloudAiService,
-      ),
+    _bloc = QuizBloc(
+      generationService: QuizGenerationService(cloudAiService: _cloudAiService),
     );
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _bloc.close();
     _cloudAiService.dispose();
     _topicController.dispose();
     super.dispose();
@@ -49,81 +48,83 @@ class _QuizHomeScreenState extends State<QuizHomeScreen> {
       return;
     }
 
-    await _controller.generateQuiz(
-      topic: topic,
-      difficulty: _difficulty,
-      questionCount: _questionCount,
+    _bloc.add(
+      GenerateQuiz(
+        topic: topic,
+        difficulty: _difficulty,
+        questionCount: _questionCount,
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('AI Quiz'),
-      ),
-      body: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) {
-          if (_controller.isGenerating) {
-            return const _QuizLoadingState();
-          }
+    return BlocProvider.value(
+      value: _bloc,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('AI Quiz')),
+        body: BlocBuilder<QuizBloc, QuizState>(
+          builder: (context, state) {
+            if (state.isGenerating) {
+              return const _QuizLoadingState();
+            }
 
-          if (_controller.errorMessage != null && !_controller.hasQuiz) {
-            return _QuizErrorState(
-              message: _controller.errorMessage!,
-              onRetry: _startQuiz,
-            );
-          }
-
-          if (_controller.hasQuiz) {
-            final resultVisible = _controller.isResultVisible;
-            if (resultVisible) {
-              return _QuizResultState(
-                result: _controller.calculateResult(),
-                onRetry: _controller.retryQuiz,
-                onNewQuiz: _controller.resetQuiz,
+            if (state.errorMessage != null && !state.hasQuiz) {
+              return _QuizErrorState(
+                message: state.errorMessage!,
+                onRetry: _startQuiz,
               );
             }
 
-            final question = _controller.currentQuestion;
-            if (question == null) {
-              return _QuizResultState(
-                result: _controller.calculateResult(),
-                onRetry: _controller.retryQuiz,
-                onNewQuiz: _controller.resetQuiz,
+            if (state.hasQuiz) {
+              final resultVisible = state.isResultVisible;
+              if (resultVisible) {
+                return _QuizResultState(
+                  result: state.result,
+                  onRetry: () => _bloc.add(const RetryQuiz()),
+                  onNewQuiz: () => _bloc.add(const ResetQuiz()),
+                );
+              }
+
+              final question = state.currentQuestion;
+              if (question == null) {
+                return _QuizResultState(
+                  result: state.result,
+                  onRetry: () => _bloc.add(const RetryQuiz()),
+                  onNewQuiz: () => _bloc.add(const ResetQuiz()),
+                );
+              }
+
+              return _QuestionState(
+                quiz: state.quiz!,
+                question: question,
+                questionIndex: state.currentQuestionIndex,
+                selectedAnswer: state.selectedAnswerForCurrentQuestion,
+                isSubmitted: state.isCurrentQuestionSubmitted,
+                onSelect: (answer) => _bloc.add(SelectAnswer(answer)),
+                onSubmit: () => _bloc.add(const SubmitAnswer()),
+                onNext: () => _bloc.add(const NextQuestion()),
               );
             }
 
-            return _QuestionState(
-              quiz: _controller.quiz!,
-              question: question,
-              questionIndex: _controller.currentQuestionIndex,
-              selectedAnswer: _controller.selectedAnswerForCurrentQuestion,
-              isSubmitted: _controller.isCurrentQuestionSubmitted,
-              onSelect: _controller.selectAnswer,
-              onSubmit: _controller.submitAnswer,
-              onNext: _controller.nextQuestion,
+            return _SetupState(
+              topicController: _topicController,
+              difficulty: _difficulty,
+              questionCount: _questionCount,
+              onDifficultyChanged: (value) {
+                setState(() {
+                  _difficulty = value;
+                });
+              },
+              onQuestionCountChanged: (value) {
+                setState(() {
+                  _questionCount = value;
+                });
+              },
+              onStart: _startQuiz,
             );
-          }
-
-          return _SetupState(
-            topicController: _topicController,
-            difficulty: _difficulty,
-            questionCount: _questionCount,
-            onDifficultyChanged: (value) {
-              setState(() {
-                _difficulty = value;
-              });
-            },
-            onQuestionCountChanged: (value) {
-              setState(() {
-                _questionCount = value;
-              });
-            },
-            onStart: _startQuiz,
-          );
-        },
+          },
+        ),
       ),
     );
   }
@@ -141,10 +142,7 @@ class _QuizLoadingState extends StatelessWidget {
         children: [
           const CircularProgressIndicator(),
           const SizedBox(height: 16),
-          Text(
-            'Generating your quiz...',
-            style: theme.textTheme.titleMedium,
-          ),
+          Text('Generating your quiz...', style: theme.textTheme.titleMedium),
         ],
       ),
     );
@@ -243,7 +241,10 @@ class _SetupState extends StatelessWidget {
                 ),
                 items: const [
                   DropdownMenuItem(value: 'Beginner', child: Text('Beginner')),
-                  DropdownMenuItem(value: 'Intermediate', child: Text('Intermediate')),
+                  DropdownMenuItem(
+                    value: 'Intermediate',
+                    child: Text('Intermediate'),
+                  ),
                   DropdownMenuItem(value: 'Advanced', child: Text('Advanced')),
                 ],
                 onChanged: (value) {
@@ -339,16 +340,14 @@ class _QuestionState extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  Text(
-                    question.question,
-                    style: theme.textTheme.headlineSmall,
-                  ),
+                  Text(question.question, style: theme.textTheme.headlineSmall),
                   const SizedBox(height: 20),
                   ...question.options.map((option) {
                     final isSelected = option == selectedAnswer;
                     final isCorrectAnswer = option == question.correctAnswer;
                     final showCorrect = isSubmitted && isCorrectAnswer;
-                    final showWrong = isSubmitted && isSelected && !isCorrectAnswer;
+                    final showWrong =
+                        isSubmitted && isSelected && !isCorrectAnswer;
 
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
@@ -356,10 +355,10 @@ class _QuestionState extends StatelessWidget {
                         color: showCorrect
                             ? colorScheme.primaryContainer
                             : showWrong
-                                ? colorScheme.errorContainer
-                                : isSelected
-                                    ? colorScheme.secondaryContainer
-                                    : colorScheme.surfaceContainerHighest,
+                            ? colorScheme.errorContainer
+                            : isSelected
+                            ? colorScheme.secondaryContainer
+                            : colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(14),
                         child: InkWell(
                           onTap: isSubmitted ? null : () => onSelect(option),
@@ -379,8 +378,7 @@ class _QuestionState extends StatelessWidget {
                                 ),
                                 if (showCorrect)
                                   const Icon(Icons.check_circle_rounded),
-                                if (showWrong)
-                                  const Icon(Icons.close_rounded),
+                                if (showWrong) const Icon(Icons.close_rounded),
                               ],
                             ),
                           ),
@@ -492,10 +490,7 @@ class _QuizResultState extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  performanceMessage,
-                  style: theme.textTheme.titleMedium,
-                ),
+                Text(performanceMessage, style: theme.textTheme.titleMedium),
                 const SizedBox(height: 16),
                 Text(
                   'Correct: ${result.correctAnswers}\nIncorrect: ${result.incorrectAnswers}',

@@ -62,9 +62,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
     _cloudAiService = CloudAiService(modelStore: _modelStore);
 
-    _catalog = Catalog([
-      quizCatalogItem,
-    ], catalogId: 'ActiveWidgetsCatalog');
+    _catalog = Catalog([quizCatalogItem], catalogId: 'ActiveWidgetsCatalog');
 
     _surfaceController = SurfaceController(catalogs: [_catalog]);
 
@@ -476,9 +474,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             fontWeight: FontWeight.w600,
           ),
         ),
-        actions: const [
-          SizedBox(width: 4),
-        ],
+        actions: const [SizedBox(width: 4)],
       ),
       body: Column(
         children: [

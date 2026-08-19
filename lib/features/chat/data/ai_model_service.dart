@@ -60,9 +60,9 @@ class CloudAiService {
       ..body = jsonEncode(requestBody);
 
     try {
-      final response = await _client.send(request).timeout(
-        const Duration(seconds: 30),
-      );
+      final response = await _client
+          .send(request)
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final responseBody = await response.stream.bytesToString();
@@ -96,7 +96,8 @@ class CloudAiService {
     } on FormatException catch (error) {
       throw CloudAiException(
         message: 'Could not parse the quiz response: $error',
-        userMessage: 'The AI returned an invalid quiz format. Please try again.',
+        userMessage:
+            'The AI returned an invalid quiz format. Please try again.',
       );
     } catch (error, stackTrace) {
       debugPrint(
@@ -121,9 +122,7 @@ class CloudAiService {
 
     final promptBuilder = PromptBuilder.chat(
       catalog: catalog,
-      systemPromptFragments: [
-        PromptFragments.uiGenerationRestriction(),
-      ],
+      systemPromptFragments: [PromptFragments.uiGenerationRestriction()],
     );
 
     final currentMessage = _toOpenRouterMessage(message);
@@ -314,7 +313,9 @@ class CloudAiService {
       }
     }
 
-    throw const FormatException('The quiz response did not include a parsable JSON payload.');
+    throw const FormatException(
+      'The quiz response did not include a parsable JSON payload.',
+    );
   }
 
   Map<String, dynamic> _decodeStreamEvent(String rawData) {
