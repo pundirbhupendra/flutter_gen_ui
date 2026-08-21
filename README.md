@@ -22,11 +22,11 @@ The user enters a topic, chooses a difficulty, and picks a question count. The a
 
 ## Screenshots
 
-![Home screen](screenshot/screenshot-0.png)
-
-![Quiz setup](screenshot/screenshot-1.png)
-
-![Quiz question](screenshot/screenshot-2.png)
+<p align="center">
+  <img src="screenshot/screenshot-0.png" alt="Home screen" width="250" />
+  <img src="screenshot/screenshot-1.png" alt="Quiz setup" width="250" />
+  <img src="screenshot/screenshot-2.png" alt="Quiz question" width="250" />
+</p>
 
 ## Setup
 
