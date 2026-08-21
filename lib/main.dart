@@ -4,6 +4,6 @@ import 'package:gen_ui/app/app_base.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: '.env');
+  await dotenv.load(fileName: 'assets/.env');
   runApp(const AppBase());
 }
